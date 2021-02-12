@@ -60,9 +60,6 @@ static uint16_t read_keyboard_id(void)
     uint16_t id = 0;
     int16_t  code = 0;
 
-    // temporary fix Z-150 AT should response with ID
-    if (ibmpc_protocol == IBMPC_PROTOCOL_AT_Z150) return 0xFFFD;
-
     // Disable
     //code = ibmpc_host_send(0xF5);
 
@@ -279,6 +276,8 @@ uint8_t matrix_scan(void)
             break;
         case READ_ID:
             keyboard_id = read_keyboard_id();
+            // for test
+            if (ibmpc_protocol == IBMPC_PROTOCOL_AT_Z150) keyboard_id = 0xFFFD;
             xprintf("R%u ", timer_read());
 
             if (0x0000 == keyboard_id) {            // CodeSet2 AT(IBM PC AT 84-key)
@@ -329,8 +328,6 @@ uint8_t matrix_scan(void)
                 case PC_XT:
                     break;
                 case PC_AT:
-                    // TODO: led_set() works for Zenith Z-150 AT?
-                    if (ibmpc_protocol == IBMPC_PROTOCOL_AT_Z150) break;
                     led_set(host_keyboard_leds());
                     break;
                 case PC_TERMINAL:

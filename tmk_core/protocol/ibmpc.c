@@ -228,7 +228,7 @@ int16_t ibmpc_host_recv(void)
 int16_t ibmpc_host_recv_response(void)
 {
     // Command may take 25ms/20ms at most([5]p.46, [3]p.21)
-    uint8_t retry = 25;
+    uint8_t retry = 250;
     int16_t data = -1;
     while (retry-- && (data = ibmpc_host_recv()) == -1) {
         wait_ms(1);
