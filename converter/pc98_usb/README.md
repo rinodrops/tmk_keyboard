@@ -1,9 +1,15 @@
 PC98 to USB keyboard protocol converter
 =======================================
-Target MCU is ATMega32u2 but other USB capable AVR will also work.
+Main target is TMK prebuilt converter(ATMega32u2) but it will work on dev boards with ATMega32u4.
 
 To initialize keyboard correctly you have to connect keyboard with converter first and then plug them into USB port.
 Otherwise, keyboard may not work.
+
+
+You can buy [TMK prebuilt converter](https://geekhack.org/index.php?topic=72052.0) here to support this project.
+
+Discuss or report issue on github or [this thread](https://geekhack.org/index.php?topic=110094.0).
+
 
 
 Connector
@@ -35,7 +41,6 @@ Wiring: You can change this with editing config.h.
 
 
 
-
 Protocol
 --------
 Signal: Asynchronous, Positive logic, 19200baud, Least bit first
@@ -60,7 +65,7 @@ To flash firmware run this command
 
     $ make dfu
 
-then push button on converter to flash firmware.
+then push button on the converter to flash firmware.
 
 If you are using ATMega32u4 based board use following commands to get firmware HEX file.
 
@@ -156,19 +161,22 @@ Its scan code map is very different from standard types. This is not tested.
 
 Other PC98 converter projects and resource
 ------------------------------------------
-PC-9800シリーズ テクニカルデータブック HARDWARE 編 1993年 p139, p343
-https://archive.org/stream/PC9800TechnicalDataBookHARDWARE1993/PC-9800TechnicalDataBook_HARDWARE1993#page/n151
-https://archive.org/stream/PC9800TechnicalDataBookHARDWARE1993/PC-9800TechnicalDataBook_HARDWARE1993#page/n355
+### TMK wiki
+- https://github.com/tmk/tmk_keyboard/wiki/PC-9801-Keyboard
 
-PC98 to USB
-http://davy.nyacom.net/kbd98usb/
+### PC-9800シリーズ テクニカルデータブック HARDWARE 編 1993年 p139, p343
+- https://archive.org/stream/PC9800TechnicalDataBookHARDWARE1993/PC-9800TechnicalDataBook_HARDWARE1993#page/n151
+- https://archive.org/stream/PC9800TechnicalDataBookHARDWARE1993/PC-9800TechnicalDataBook_HARDWARE1993#page/n355
 
-PC98 to PS/2
-http://www.tsp.ne.jp/~sawada/mago/c_gka98at.htm
-http://www.tsp.ne.jp/~sawada/mago/src/gka98at.asm
+### PC98 to USB
+- http://davy.nyacom.net/kbd98usb/
 
-scan code:
-http://ixsvr.dyndns.org/usb2pc98
+### PC98 to PS/2
+- http://www.tsp.ne.jp/~sawada/mago/c_gka98at.htm
+- http://www.tsp.ne.jp/~sawada/mago/src/gka98at.asm
+
+### Scan code
+- http://ixsvr.dyndns.org/usb2pc98
 
 
 
@@ -182,9 +190,9 @@ NOTES
 ### RDY
 PC98 host keeps RDY line high to prevent keyboard from sending data while processing.
 
-https://archive.org/stream/PC9800TechnicalDataBookHARDWARE1993/PC-9800TechnicalDataBook_HARDWARE1993#page/n359
+- https://archive.org/stream/PC9800TechnicalDataBookHARDWARE1993/PC-9800TechnicalDataBook_HARDWARE1993#page/n359
 
-PC-9801V keyboard requires RDY pulse as acknowledgement from host, it doesn't next data without this. Dboard doens't need this.
+PC-9801V keyboard requires RDY pulse as acknowledgement from host, it doesn't next data without this. Dboard doesn't need this.
 
 
 ### Inhibit key repeating

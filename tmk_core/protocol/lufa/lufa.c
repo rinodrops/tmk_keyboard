@@ -68,26 +68,35 @@
 //#define TMK_LUFA_DEBUG
 
 
+#ifndef NO_KEYBOARD
 uint8_t keyboard_idle = 0;
 /* 0: Boot Protocol, 1: Report Protocol(default) */
 uint8_t keyboard_protocol = 1;
 static uint8_t keyboard_led_stats = 0;
-
 static report_keyboard_t keyboard_report_sent;
+#endif
+
+#ifdef MOUSE_ENABLE
+uint8_t mouse_protocol = 1;
+#endif
 
 
 /* Host driver */
+#ifndef NO_KEYBOARD
 static uint8_t keyboard_leds(void);
 static void send_keyboard(report_keyboard_t *report);
+#endif
 static void send_mouse(report_mouse_t *report);
 static void send_system(uint16_t data);
 static void send_consumer(uint16_t data);
 host_driver_t lufa_driver = {
-    keyboard_leds,
-    send_keyboard,
-    send_mouse,
-    send_system,
-    send_consumer
+#ifndef NO_KEYBOARD
+    .keyboard_leds = keyboard_leds,
+    .send_keyboard = send_keyboard,
+#endif
+    .send_mouse = send_mouse,
+    .send_system = send_system,
+    .send_consumer = send_consumer
 };
 
 
@@ -327,33 +336,35 @@ void EVENT_USB_Device_ConfigurationChanged(void)
 #endif
     bool ConfigSuccess = true;
 
+#ifndef NO_KEYBOARD
     /* Setup Keyboard HID Report Endpoints */
     ConfigSuccess &= ENDPOINT_CONFIG(KEYBOARD_IN_EPNUM, EP_TYPE_INTERRUPT, ENDPOINT_DIR_IN,
-                                     KEYBOARD_EPSIZE, ENDPOINT_BANK_SINGLE);
+#ifdef NKRO_ENABLE
+                                     NKRO_EPSIZE,
+#else
+                                     KEYBOARD_EPSIZE,
+#endif
+                                     ENDPOINT_BANK_SINGLE);
+#endif
 
-#ifdef MOUSE_ENABLE
+#if defined(MOUSE_ENABLE) || defined(EXTRAKEY_ENABLE)
     /* Setup Mouse HID Report Endpoint */
     ConfigSuccess &= ENDPOINT_CONFIG(MOUSE_IN_EPNUM, EP_TYPE_INTERRUPT, ENDPOINT_DIR_IN,
                                      MOUSE_EPSIZE, ENDPOINT_BANK_SINGLE);
 #endif
 
-#ifdef EXTRAKEY_ENABLE
-    /* Setup Extra HID Report Endpoint */
-    ConfigSuccess &= ENDPOINT_CONFIG(EXTRAKEY_IN_EPNUM, EP_TYPE_INTERRUPT, ENDPOINT_DIR_IN,
-                                     EXTRAKEY_EPSIZE, ENDPOINT_BANK_SINGLE);
-#endif
-
 #ifdef CONSOLE_ENABLE
+    // ATMega32U2 doesn't support double bank on endpoint 1 and 2, use 3 or 4
     /* Setup Console HID Report Endpoints */
     ConfigSuccess &= ENDPOINT_CONFIG(CONSOLE_IN_EPNUM, EP_TYPE_INTERRUPT, ENDPOINT_DIR_IN,
-                                     CONSOLE_EPSIZE, ENDPOINT_BANK_SINGLE);
+                                     CONSOLE_EPSIZE, ENDPOINT_BANK_DOUBLE);
 #if 0
     ConfigSuccess &= ENDPOINT_CONFIG(CONSOLE_OUT_EPNUM, EP_TYPE_INTERRUPT, ENDPOINT_DIR_OUT,
                                      CONSOLE_EPSIZE, ENDPOINT_BANK_SINGLE);
 #endif
 #endif
 
-#ifdef NKRO_ENABLE
+#ifdef NKRO_6KRO_ENABLE
     /* Setup NKRO HID Report Endpoints */
     ConfigSuccess &= ENDPOINT_CONFIG(NKRO_IN_EPNUM, EP_TYPE_INTERRUPT, ENDPOINT_DIR_IN,
                                      NKRO_EPSIZE, ENDPOINT_BANK_SINGLE);
@@ -378,15 +389,16 @@ Other Device    Required    Optional    Optional    Optional    Optional    Opti
  */
 void EVENT_USB_Device_ControlRequest(void)
 {
-    uint8_t* ReportData = NULL;
-    uint8_t  ReportSize = 0;
-
     /* Handle HID Class specific requests */
     switch (USB_ControlRequest.bRequest)
     {
         case HID_REQ_GetReport:
+#ifndef NO_KEYBOARD
             if (USB_ControlRequest.bmRequestType == (REQDIR_DEVICETOHOST | REQTYPE_CLASS | REQREC_INTERFACE))
             {
+                uint8_t* ReportData = NULL;
+                uint8_t  ReportSize = 0;
+
                 Endpoint_ClearSETUP();
 
                 // Interface
@@ -405,6 +417,7 @@ void EVENT_USB_Device_ControlRequest(void)
                 xprintf("[r%d]", USB_ControlRequest.wIndex);
 #endif
             }
+#endif
 
             break;
         case HID_REQ_SetReport:
@@ -413,8 +426,9 @@ void EVENT_USB_Device_ControlRequest(void)
 
                 // Interface
                 switch (USB_ControlRequest.wIndex) {
+#ifndef NO_KEYBOARD
                 case KEYBOARD_INTERFACE:
-#ifdef NKRO_ENABLE
+#ifdef NKRO_6KRO_ENABLE
                 case NKRO_INTERFACE:
 #endif
                     Endpoint_ClearSETUP();
@@ -431,6 +445,7 @@ void EVENT_USB_Device_ControlRequest(void)
                     xprintf("[L%d]", USB_ControlRequest.wIndex);
 #endif
                     break;
+#endif
                 }
 
             }
@@ -440,6 +455,7 @@ void EVENT_USB_Device_ControlRequest(void)
         case HID_REQ_GetProtocol:
             if (USB_ControlRequest.bmRequestType == (REQDIR_DEVICETOHOST | REQTYPE_CLASS | REQREC_INTERFACE))
             {
+#ifndef NO_KEYBOARD
                 if (USB_ControlRequest.wIndex == KEYBOARD_INTERFACE) {
                     Endpoint_ClearSETUP();
                     while (!(Endpoint_IsINReady()));
@@ -450,12 +466,23 @@ void EVENT_USB_Device_ControlRequest(void)
                     print("[p]");
 #endif
                 }
+#endif
+#if defined(MOUSE_ENABLE)
+                if (USB_ControlRequest.wIndex == MOUSE_INTERFACE) {
+                    Endpoint_ClearSETUP();
+                    while (!(Endpoint_IsINReady()));
+                    Endpoint_Write_8(mouse_protocol);
+                    Endpoint_ClearIN();
+                    Endpoint_ClearStatusStage();
+                }
+#endif
             }
 
             break;
         case HID_REQ_SetProtocol:
             if (USB_ControlRequest.bmRequestType == (REQDIR_HOSTTODEVICE | REQTYPE_CLASS | REQREC_INTERFACE))
             {
+#ifndef NO_KEYBOARD
                 if (USB_ControlRequest.wIndex == KEYBOARD_INTERFACE) {
                     Endpoint_ClearSETUP();
                     Endpoint_ClearStatusStage();
@@ -466,12 +493,23 @@ void EVENT_USB_Device_ControlRequest(void)
                     print("[P]");
 #endif
                 }
+#endif
+#if defined(MOUSE_ENABLE)
+                if (USB_ControlRequest.wIndex == MOUSE_INTERFACE) {
+                    Endpoint_ClearSETUP();
+                    Endpoint_ClearStatusStage();
+
+                    mouse_protocol = (USB_ControlRequest.wValue & 0xFF);
+                    clear_keyboard();
+                }
+#endif
             }
 
             break;
         case HID_REQ_SetIdle:
             if (USB_ControlRequest.bmRequestType == (REQDIR_HOSTTODEVICE | REQTYPE_CLASS | REQREC_INTERFACE))
             {
+#ifndef NO_KEYBOARD
                 Endpoint_ClearSETUP();
                 Endpoint_ClearStatusStage();
 
@@ -479,12 +517,14 @@ void EVENT_USB_Device_ControlRequest(void)
 #ifdef TMK_LUFA_DEBUG
                 xprintf("[I%d]%d", USB_ControlRequest.wIndex, (USB_ControlRequest.wValue & 0xFF00) >> 8);
 #endif
+#endif
             }
 
             break;
         case HID_REQ_GetIdle:
             if (USB_ControlRequest.bmRequestType == (REQDIR_DEVICETOHOST | REQTYPE_CLASS | REQREC_INTERFACE))
             {
+#ifndef NO_KEYBOARD
                 Endpoint_ClearSETUP();
                 while (!(Endpoint_IsINReady()));
                 Endpoint_Write_8(keyboard_idle);
@@ -492,6 +532,7 @@ void EVENT_USB_Device_ControlRequest(void)
                 Endpoint_ClearStatusStage();
 #ifdef TMK_LUFA_DEBUG
                 print("[i]");
+#endif
 #endif
             }
 
@@ -502,6 +543,7 @@ void EVENT_USB_Device_ControlRequest(void)
 /*******************************************************************************
  * Host driver
  ******************************************************************************/
+#ifndef NO_KEYBOARD
 static uint8_t keyboard_leds(void)
 {
     return keyboard_led_stats;
@@ -515,10 +557,14 @@ static void send_keyboard(report_keyboard_t *report)
         return;
 
     /* Select the Keyboard Report Endpoint */
-#ifdef NKRO_ENABLE
+#if defined(NKRO_ENABLE) || defined(NKRO_6KRO_ENABLE)
     if (keyboard_protocol && keyboard_nkro) {
         /* Report protocol - NKRO */
+        #if defined(NKRO_6KRO_ENABLE)
         Endpoint_SelectEndpoint(NKRO_IN_EPNUM);
+        #else
+        Endpoint_SelectEndpoint(KEYBOARD_IN_EPNUM);
+        #endif
 
         /* Check if write ready for a polling interval around 1ms */
         while (timeout-- && !Endpoint_IsReadWriteAllowed()) _delay_us(8);
@@ -546,6 +592,7 @@ static void send_keyboard(report_keyboard_t *report)
 
     keyboard_report_sent = *report;
 }
+#endif
 
 static void send_mouse(report_mouse_t *report)
 {
@@ -563,7 +610,14 @@ static void send_mouse(report_mouse_t *report)
     if (!Endpoint_IsReadWriteAllowed()) return;
 
     /* Write Mouse Report Data */
-    Endpoint_Write_Stream_LE(report, sizeof(report_mouse_t), NULL);
+    if (mouse_protocol) {
+        // Report
+        Endpoint_Write_8(REPORT_ID_MOUSE);
+        Endpoint_Write_Stream_LE(report, sizeof(report_mouse_t), NULL);
+    } else {
+        // Boot
+        Endpoint_Write_Stream_LE(report, 3, NULL);
+    }
 
     /* Finalize the stream transfer to send the last packet */
     Endpoint_ClearIN();
@@ -578,11 +632,13 @@ static void send_system(uint16_t data)
     if (USB_DeviceState != DEVICE_STATE_Configured)
         return;
 
-    report_extra_t r = {
-        .report_id = REPORT_ID_SYSTEM,
-        .usage = data - SYSTEM_POWER_DOWN + 1
-    };
-    Endpoint_SelectEndpoint(EXTRAKEY_IN_EPNUM);
+    report_extra_t r = { .report_id = REPORT_ID_SYSTEM };
+    if (data < SYSTEM_POWER_DOWN) {
+        r.usage = 0;
+    } else {
+        r.usage = data - SYSTEM_POWER_DOWN + 1;
+    }
+    Endpoint_SelectEndpoint(MOUSE_IN_EPNUM);
 
     /* Check if write ready for a polling interval around 10ms */
     while (timeout-- && !Endpoint_IsReadWriteAllowed()) _delay_us(40);
@@ -605,7 +661,7 @@ static void send_consumer(uint16_t data)
         .report_id = REPORT_ID_CONSUMER,
         .usage = data
     };
-    Endpoint_SelectEndpoint(EXTRAKEY_IN_EPNUM);
+    Endpoint_SelectEndpoint(MOUSE_IN_EPNUM);
 
     /* Check if write ready for a polling interval around 10ms */
     while (timeout-- && !Endpoint_IsReadWriteAllowed()) _delay_us(40);
@@ -677,21 +733,40 @@ int main(void)
     print_set_sendchar(sendchar);
     host_set_driver(&lufa_driver);
 
-    print("\n\nTMK:" STR(TMK_VERSION) "/LUFA\n\n");
+    print("\nTMK:" STR(TMK_VERSION) "/LUFA:" STR(TMK_LUFA_VERSION)
+#ifdef TMK_USB_HOST_SHIELD_VERSION
+            "/UHS2:" STR(TMK_USB_HOST_SHIELD_VERSION)
+#endif
+            "\n");
+
     hook_early_init();
+
+#ifndef NO_KEYBOARD
     keyboard_setup();
+#endif
+
     setup_usb();
+
 #ifdef SLEEP_LED_ENABLE
     sleep_led_init();
 #endif
 
     sei();
 
+#ifndef NO_KEYBOARD
     keyboard_init();
+#else
+    // TODO: keyboard_init() should be used only for things related to keyboard
+    timer_init();
+#endif
 
 #ifndef NO_USB_STARTUP_WAIT_LOOP
     /* wait for USB startup */
-    while (USB_DeviceState != DEVICE_STATE_Configured) {
+    while (USB_DeviceState != DEVICE_STATE_Configured
+#ifdef CONSOLE_ENABLE
+            || !console_is_ready()
+#endif
+            ) {
 #if defined(INTERRUPT_CONTROL_ENDPOINT)
         ;
 #else
@@ -704,7 +779,7 @@ int main(void)
 
     hook_late_init();
 
-    print("\nKeyboard start.\n");
+    print("\nLoop start.\n");
     while (1) {
 #ifndef NO_USB_SUSPEND_LOOP
         while (USB_DeviceState == DEVICE_STATE_Suspended) {
@@ -712,7 +787,11 @@ int main(void)
         }
 #endif
 
+        hook_main_loop();
+
+#ifndef NO_KEYBOARD
         keyboard_task();
+#endif
 
 #ifdef CONSOLE_ENABLE
         console_task();
@@ -732,10 +811,13 @@ void hook_early_init(void) {}
 __attribute__((weak))
 void hook_late_init(void) {}
 
+#ifndef NO_KEYBOARD
 static uint8_t _led_stats = 0;
+#endif
  __attribute__((weak))
 void hook_usb_suspend_entry(void)
 {
+#ifndef NO_KEYBOARD
     // Turn off LED to save power and keep its status to resotre it later.
     // LED status will be updated by keyboard_task() in main loop hopefully.
     _led_stats = keyboard_led_stats;
@@ -745,6 +827,7 @@ void hook_usb_suspend_entry(void)
 
     matrix_clear();
     clear_keyboard();
+#endif
 #ifdef SLEEP_LED_ENABLE
     sleep_led_enable();
 #endif
@@ -770,8 +853,10 @@ void hook_usb_wakeup(void)
     sleep_led_disable();
 #endif
 
+#ifndef NO_KEYBOARD
     // Restore LED status and update at keyboard_task() in main loop
     keyboard_led_stats = _led_stats;
+#endif
 
     // Calling long task here can prevent USB state transition
 }
